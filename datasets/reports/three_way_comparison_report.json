@@ -1,0 +1,80 @@
+{
+  "multipolicy_100": {
+    "total": 100,
+    "runtime_s": 104.2,
+    "models": {
+      "Base (Zero-Shot)": {
+        "exact_acc": 52.0,
+        "action_acc": 77.0,
+        "dates_acc": 55.0
+      },
+      "LoRA v1 (1200)": {
+        "exact_acc": 90.0,
+        "action_acc": 96.0,
+        "dates_acc": 94.0
+      },
+      "LoRA v2 (1700)": {
+        "exact_acc": 82.0,
+        "action_acc": 97.0,
+        "dates_acc": 82.0
+      },
+      "LoRA v6 (1740-Clean)": {
+        "exact_acc": 85.0,
+        "action_acc": 96.0,
+        "dates_acc": 87.0
+      }
+    }
+  },
+  "adversarial_100": {
+    "total": 100,
+    "runtime_s": 94.1,
+    "models": {
+      "Base (Zero-Shot)": {
+        "exact_acc": 60.0,
+        "action_acc": 63.0,
+        "dates_acc": 79.0
+      },
+      "LoRA v1 (1200)": {
+        "exact_acc": 78.0,
+        "action_acc": 79.0,
+        "dates_acc": 91.0
+      },
+      "LoRA v2 (1700)": {
+        "exact_acc": 77.0,
+        "action_acc": 79.0,
+        "dates_acc": 88.0
+      },
+      "LoRA v6 (1740-Clean)": {
+        "exact_acc": 77.0,
+        "action_acc": 79.0,
+        "dates_acc": 92.0
+      }
+    }
+  },
+  "baseline_400": {
+    "total": 400,
+    "runtime_s": 395.8,
+    "models": {
+      "Base (Zero-Shot)": {
+        "exact_acc": 64.25,
+        "action_acc": 67.25,
+        "dates_acc": 83.75
+      },
+      "LoRA v1 (1200)": {
+        "exact_acc": 92.5,
+        "action_acc": 93.75,
+        "dates_acc": 94.5
+      },
+      "LoRA v2 (1700)": {
+        "exact_acc": 92.75,
+        "action_acc": 92.75,
+        "dates_acc": 94.5
+      },
+      "LoRA v6 (1740-Clean)": {
+        "exact_acc": 94.25,
+        "action_acc": 97.25,
+        "dates_acc": 95.0
+      }
+    }
+  }
+}

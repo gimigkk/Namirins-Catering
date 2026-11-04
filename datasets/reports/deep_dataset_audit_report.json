@@ -1,0 +1,90 @@
+{
+  "distribution_divergence": {
+    "js_divergence_action": {
+      "old_vs_sealed": 0.0262,
+      "fresh_vs_sealed": 0.0
+    },
+    "js_divergence_session": {
+      "old_vs_sealed": 0.0435,
+      "fresh_vs_sealed": 0.0017
+    },
+    "js_divergence_offset": {
+      "old_vs_sealed": 0.0412,
+      "fresh_vs_sealed": 0.0261
+    },
+    "wasserstein_offset_dist": {
+      "old_vs_sealed": 0.4334,
+      "fresh_vs_sealed": 0.1886
+    }
+  },
+  "lexical_richness": {
+    "old_train": {
+      "total_tokens": 69156,
+      "vocab_size": 3935,
+      "ttr": 0.0569,
+      "guiraud_r_ttr": 14.96,
+      "hapax_legomena_ratio": 0.3751,
+      "shannon_entropy": 9.0,
+      "unique_trigrams": 36823,
+      "avg_dialog_length_words": 138.3,
+      "avg_turns": 6.17
+    },
+    "fresh_train": {
+      "total_tokens": 73965,
+      "vocab_size": 2140,
+      "ttr": 0.0289,
+      "guiraud_r_ttr": 7.87,
+      "hapax_legomena_ratio": 0.3206,
+      "shannon_entropy": 8.27,
+      "unique_trigrams": 34269,
+      "avg_dialog_length_words": 147.9,
+      "avg_turns": 6.0
+    },
+    "sealed_test": {
+      "total_tokens": 13671,
+      "vocab_size": 1682,
+      "ttr": 0.123,
+      "guiraud_r_ttr": 14.39,
+      "hapax_legomena_ratio": 0.431,
+      "shannon_entropy": 8.58,
+      "unique_trigrams": 9580,
+      "avg_dialog_length_words": 136.7,
+      "avg_turns": 6.06
+    }
+  },
+  "pragmatic_markers": {
+    "old_train": {
+      "ipb_place_mentions_per_dialog": 2.11,
+      "hesitation_corrections_per_dialog": 0.13,
+      "colloquial_particles_per_dialog": 8.89
+    },
+    "fresh_train": {
+      "ipb_place_mentions_per_dialog": 2.08,
+      "hesitation_corrections_per_dialog": 0.07,
+      "colloquial_particles_per_dialog": 11.97
+    },
+    "sealed_test": {
+      "ipb_place_mentions_per_dialog": 1.7,
+      "hesitation_corrections_per_dialog": 0.22,
+      "colloquial_particles_per_dialog": 10.32
+    }
+  },
+  "memorization_and_leakage_fingerprint": {
+    "old_train_vs_sealed": {
+      "max_train_test_jaccard": 0.4301,
+      "mean_train_test_jaccard": 0.0018,
+      "mean_intra_train_jaccard": 0.0051
+    },
+    "fresh_train_vs_sealed": {
+      "max_train_test_jaccard": 0.0404,
+      "mean_train_test_jaccard": 0.0011,
+      "mean_intra_train_jaccard": 0.0169
+    }
+  },
+  "semantic_space_centroid": {
+    "old_vs_sealed_centroid_cosine": 0.8944,
+    "fresh_vs_sealed_centroid_cosine": 0.7554,
+    "old_vs_sealed_euclidean_dist": 0.1744,
+    "fresh_vs_sealed_euclidean_dist": 0.28
+  }
+}
