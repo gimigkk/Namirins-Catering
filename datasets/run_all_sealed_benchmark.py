@@ -26,7 +26,7 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from Pipeline_MultiPolicy import PassiveListeningPipeline
+from Final_Pipeline_Architecture import PassiveListeningPipeline
 
 
 SEALED_FILES = {
@@ -170,7 +170,7 @@ def main():
 
     master_report = load_existing_report()
 
-    print("\nInitializing Pipeline_MultiPolicy with LoRA adapter...")
+    print("\nInitializing Final_Pipeline_Architecture with LoRA adapter...")
     pipe = PassiveListeningPipeline()
 
     splits_to_run = (

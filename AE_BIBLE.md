@@ -219,7 +219,7 @@ flowchart LR
 ---
 
 ### E. Arsitektur Multi-Policy & Routing Subsumpsi (Multi-Policy Causal Decision Grid)
-Di dalam `Pipeline_MultiPolicy.py`, model tidak lagi dibatasi pada satu intent tunggal yang saling lepas (*single-label mutual exclusion*). Sebagai gantinya, sistem menggunakan **Multi-Head Independent Decision Grid** yang mampu mengekstrak multi-aksi secara simultan (misal: *skip* + *renew* + *catatan alergi*) dengan penegakan **Hirarki Subsumpsi (Subsumption Architecture)** demi keselamatan pangan:
+Di dalam `Final_Pipeline_Architecture.py`, model tidak lagi dibatasi pada satu intent tunggal yang saling lepas (*single-label mutual exclusion*). Sebagai gantinya, sistem menggunakan **Multi-Head Independent Decision Grid** yang mampu mengekstrak multi-aksi secara simultan (misal: *skip* + *renew* + *catatan alergi*) dengan penegakan **Hirarki Subsumpsi (Subsumption Architecture)** demi keselamatan pangan:
 
 1. **Multi-Head Independent Slot Scoring**:
    - Model mengevaluasi seluruh pertanyaan secara terpisah dalam satu forward pass logit:
@@ -238,7 +238,7 @@ Di dalam `Pipeline_MultiPolicy.py`, model tidak lagi dibatasi pada satu intent t
      Jika tidak ada jadwal skip, perpanjangan paket (`RENEW_PACKAGE`) atau preferensi diet (`UPDATE_DIETARY`) diproses sebagai aksi primer.
 
 ### F. Taksonomi & Definisi Resmi Policy Intent
-Definisi operasional intent di dalam `Pipeline_MultiPolicy.py`:
+Definisi operasional intent di dalam `Final_Pipeline_Architecture.py`:
 
 | Policy Intent | Deskripsi Semantik & Operasional | Kriteria Pemicu (*Trigger Condition*) | Output Aksi Sistem |
 |:---|:---|:---|:---|
@@ -325,7 +325,8 @@ Arsitektur antarmuka tinjauan menerapkan tiga prinsip interaksi:
 ### H. Pembagian Peran Sesuai Playbook Asah 2026
 - **Application Engineering / Gen AI (AE)**:
   1. **Custom Model**: Fine-tuning *Small Language Model* (`Intern-Decision-4B` via QLoRA 4-bit) untuk penalaran keputusan multi-turn terarah.
-  2. **Pipeline Mandiri**: Mengemas seluruh inferensi ke dalam `Pipeline_MultiPolicy.py` (self-contained, multi-head causal decision grid, zero-dependency ke folder eksternal).
+  2. **Pipeline Mandiri**: Mengemas seluruh inferensi ke dalam `Final_Pipeline_Architecture.py` (self-contained, multi-head causal decision grid, zero-dependency ke folder eksternal).
+  3. **Arsip Single-Policy**: Menyimpan arsitektur v1 terdahulu di `Old_Single_Policy_Pipeline.py`.
   3. **Komparasi Model**: Membandingkan performa model dasar vs fine-tuned pada **600 skenario Blind Sealed Testset** (`datasets/sealed/`).
   4. **Efisiensi Perangkat Keras**: Menjamin peak VRAM < 4 GB (cap 8 GB RTX 4060) dan latensi p95 < 1.5 detik.
 - **Data Science (DS)**:
@@ -366,14 +367,14 @@ Hasil benchmarking komparatif komprehensif pada **600 Skenario Blind Sealed Test
 ## 3. Antisipasi Perubahan Kontrak Output (*Output State Decoupling*)
 
 ### A. Desain Arsitektur Zero-Regex & Causal Decoupling
-Pipeline `Pipeline_MultiPolicy.py` dibangun dengan prinsip **tidak bergantung pada string matching atau regex kaku**:
+Pipeline `Final_Pipeline_Architecture.py` dibangun dengan prinsip **tidak bergantung pada string matching atau regex kaku**:
 1. **Decision Skeleton Extraction**: Model hanya diminta memprediksi token terstruktur di dalam tag `<decision>...</decision>` (multi-head key-value symbol lookup).
 2. **Deterministic Stdlib Math**: Konversi tanggal relatif (*"besok"*, *"lusa"*, *"rabu depan"*) dilakukan menggunakan kalender deterministik Python (`datetime`, `timedelta`) yang di-grounding pada jam sistem (`current_clock`).
 3. **Penyekatan Logika Kebijakan & Subsumpsi**: Logika cutoff dapur (08:30 lunch, 15:00 dinner) dan mitigasi bahaya fisik terisolasi secara murni dari inferensi model, menjamin kepatuhan mutlak tanpa halusinasi LLM.
 
 ### B. Prosedur Mengubah Output States Jika Kontrak Berubah
 Jika tim DS atau Full-Stack meminta perubahan enum status (misalnya memecah `APPLY_SKIP` menjadi `SKIP_LUNCH` & `SKIP_DINNER`, atau menambahkan `RESCHEDULE_DELIVERY`):
-1. **Buka `Pipeline_MultiPolicy.py`**:
+1. **Buka `Final_Pipeline_Architecture.py`**:
    - Perbarui dictionary `questions["policy_intent"]["criteria"]`.
    - Modifikasi parser blok keputusan untuk memetakan nama field baru.
 2. **Tanpa Retraining Model (Zero-Shot Capability)**:
@@ -451,7 +452,7 @@ CREATE TABLE IF NOT EXISTS catering_deliveries (
 
 #### 3. Draf Kontrak Payload AI Output (PaLiPi -> Backend FS) [TEMP]
 
-Ketika PaLiPi (`Pipeline_MultiPolicy.py`) selesai mengevaluasi living buffer, payload berikut dikirimkan ke backend Full-Stack untuk di-UPSERT ke `hitl_queue` (*Catatan: `remote_jid` dan `gui_dossier` disintesis oleh wrapper service backend yang menggabungkan metadata webhook chat dan profil DB*):
+Ketika PaLiPi (`Final_Pipeline_Architecture.py`) selesai mengevaluasi living buffer, payload berikut dikirimkan ke backend Full-Stack untuk di-UPSERT ke `hitl_queue` (*Catatan: `remote_jid` dan `gui_dossier` disintesis oleh wrapper service backend yang menggabungkan metadata webhook chat dan profil DB*):
 
 ```json
 {
@@ -647,13 +648,14 @@ Saat memuat adapter LoRA hasil pelatihan `AutoModelForCausalLM` ke dalam arsitek
 ## 7. Cara Menjalankan Pipeline & Evaluasi
 
 Semua fungsi disatukan di dalam:
-- **`Pipeline_MultiPolicy.py`**: Core engine inferensi Passive Listening (Multi-Head Causal Decision Grid).
+- **`Final_Pipeline_Architecture.py`**: Core engine inferensi Passive Listening (Multi-Head Causal Decision Grid).
+- **`Old_Single_Policy_Pipeline.py`**: Arsip engine baseline v1 single-policy.
 - **`datasets/run_all_sealed_benchmark.py`**: Runner evaluasi pada 600 skenario Blind Sealed Benchmark.
 - **`datasets/run_benchmark.py`**: Runner evaluasi per-split individual dengan telemetri ANSI.
 
 ```bash
 # 1. Menjalankan simulasi inferensi Passive Listening multi-policy:
-python Pipeline_MultiPolicy.py
+python Final_Pipeline_Architecture.py
 
 # 2. Menjalankan benchmark komparatif penuh pada 600 skenario tersegel:
 python datasets/run_all_sealed_benchmark.py --split all

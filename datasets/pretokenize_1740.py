@@ -217,7 +217,7 @@ def derive_gold_symbols(row: dict) -> tuple[dict, dict, list[str]]:
 def format_row(row: dict, tokenizer: AutoTokenizer) -> dict:
     answers, questions, dates_9, all_yes = derive_gold_symbols(row)
 
-    # Build conversation lines exactly as Pipeline_MultiPolicy.process_message_thread
+    # Build conversation lines exactly as Final_Pipeline_Architecture.process_message_thread
     safe_turns = row["turns"] if isinstance(row["turns"], list) else []
     lines = []
     user_turns = []
@@ -407,13 +407,13 @@ def main():
 
     # 3. Cell 6 and Cell 8 are NOT patched here — manage them directly in the notebook.
 
-    # 4. Update Cell 12 Benchmark Bundle with latest Pipeline_MultiPolicy.py and all 600 sealed holdouts
+    # 4. Update Cell 12 Benchmark Bundle with latest Final_Pipeline_Architecture.py and all 600 sealed holdouts
     cell_eval = nb["cells"][12]
     bundle_files = {
         "multipolicy_sealed_100.jsonl": open(os.path.join(ROOT_DIR, "datasets/sealed/multipolicy_sealed_100.jsonl"), "r", encoding="utf-8").read(),
         "adversarial_sealed_100.jsonl": open(os.path.join(ROOT_DIR, "datasets/sealed/adversarial_sealed_100.jsonl"), "r", encoding="utf-8").read(),
         "sealed_eval_400.jsonl": open(os.path.join(ROOT_DIR, "datasets/sealed/sealed_eval_400.jsonl"), "r", encoding="utf-8").read(),
-        "Pipeline_MultiPolicy.py": open(os.path.join(ROOT_DIR, "Pipeline_MultiPolicy.py"), "r", encoding="utf-8").read(),
+        "Final_Pipeline_Architecture.py": open(os.path.join(ROOT_DIR, "Final_Pipeline_Architecture.py"), "r", encoding="utf-8").read(),
     }
     raw_bundle_bytes = json.dumps(bundle_files, ensure_ascii=False).encode("utf-8")
     new_bundle_b64 = base64.b64encode(gzip.compress(raw_bundle_bytes, compresslevel=9)).decode("ascii")

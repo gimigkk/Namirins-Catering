@@ -20,12 +20,12 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-# Add parent dir to path so it can import Pipeline_MultiPolicy
+# Add parent dir to path so it can import Final_Pipeline_Architecture
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from Pipeline_MultiPolicy import (
+from Final_Pipeline_Architecture import (
     PassiveListeningPipeline,
     DEFAULT_LORA_PATH,
     DECISION_MODEL_PATH,
@@ -137,7 +137,7 @@ def run_benchmark():
     print(f"\n{TermColor.BOLD}{TermColor.CYAN}╔═════════════════════════════════════════════════════════════════════════════╗{TermColor.RESET}")
     print(f"{TermColor.BOLD}{TermColor.CYAN}║     NAMIRIMS AI: ULTIMATE PASSIVE LISTENING BENCHMARK RUNNER (2026)         ║{TermColor.RESET}")
     print(f"{TermColor.BOLD}{TermColor.CYAN}╚═════════════════════════════════════════════════════════════════════════════╝{TermColor.RESET}")
-    print(f" {TermColor.DIM}Engine Architecture : Pipeline_MultiPolicy.py{TermColor.RESET}")
+    print(f" {TermColor.DIM}Engine Architecture : Final_Pipeline_Architecture.py{TermColor.RESET}")
     print(f" {TermColor.DIM}Target Dataset      : {args.testset}{TermColor.RESET}")
     print(f" {TermColor.DIM}Active Timestamp    : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{TermColor.RESET}\n")
 

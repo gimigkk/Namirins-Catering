@@ -64,7 +64,7 @@ Repositori ini difokuskan untuk riset, kalibrasi dataset, evaluasi model, dan ar
 
 ### 1. Menjalankan Pipeline Keputusan Inti (Passive Listening Engine)
 ```bash
-python Pipeline_MultiPolicy.py
+python Final_Pipeline_Architecture.py
 ```
 
 ### 2. Menjalankan Komparasi Model & Benchmark 600 Skenario Tersegel
@@ -80,7 +80,8 @@ python datasets/verify_dataset.py
 
 ### Catatan Integrasi Serving (FastAPI)
 Untuk tahap production di repo development tim:
-- Engine `Pipeline_MultiPolicy.py` langsung di-mount ke router FastAPI (`fastapi dev` / `fastapi run`).
+- Engine `Final_Pipeline_Architecture.py` langsung di-mount ke router FastAPI (`fastapi dev` / `fastapi run`).
+- Arsip implementasi lama single-policy tersimpan di `Old_Single_Policy_Pipeline.py`.
 - Interface endpoint standar yang diekspos:
   - `POST /v1/decision`: Ekstraksi keputusan mutasi operasional multi-turn & compound intent.
   - `POST /v1/predict-intent`: Klasifikasi intent operasional multi-head.
