@@ -26,23 +26,20 @@ from datetime import date, datetime, time as dt_time, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 import torch
-from transformers import AutoTokenizer, Qwen3_5ForConditionalGeneration
+from transformers import AutoProcessor, AutoTokenizer, Qwen3_5ForConditionalGeneration
 
 # ---------------------------------------------------------------------------
 # Konstanta Global & Jalur Model
 # ---------------------------------------------------------------------------
 ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
 
-_local_snapshot = os.path.expanduser("~/.cache/huggingface/hub/models--internlm--Intern-Decision-4B/snapshots/main")
 DECISION_MODEL_PATH = os.environ.get(
     "DECISION_MODEL_PATH",
-    _local_snapshot if os.path.isdir(_local_snapshot) else "internlm/Intern-Decision-4B",
+    os.path.expanduser("~/.cache/huggingface/hub/models--internlm--Intern-Decision-4B/snapshots/main"),
 )
 DEFAULT_LORA_PATH = os.environ.get(
     "LORA_CHECKPOINT_PATH",
-    os.path.join(ROOT_DIR, "models/checkpoints/intern_decision_lora_1700")
-    if os.path.isdir(os.path.join(ROOT_DIR, "models/checkpoints/intern_decision_lora_1700"))
-    else os.path.join(ROOT_DIR, "models/checkpoints/intern_decision_lora_fixed"),
+    os.path.join(ROOT_DIR, "models/checkpoints/intern_decision_lora_fixed"),
 )
 
 DECISION_TOKEN = "<decision>"
@@ -164,6 +161,7 @@ class DecisionEngine:
         self.device = device
         self.temperature = float(temperature)
         torch_dtype = getattr(torch, dtype) if isinstance(dtype, str) else dtype
+        self.processor = AutoProcessor.from_pretrained(checkpoint, trust_remote_code=True)
         self.tokenizer = AutoTokenizer.from_pretrained(checkpoint, trust_remote_code=True)
 
         model_kwargs = {"trust_remote_code": True, "device_map": "auto"}
@@ -187,7 +185,7 @@ class DecisionEngine:
         assistant_text = json.dumps(skeleton_dict, ensure_ascii=False, indent=2, sort_keys=False)
         full_messages = [*compiled.messages, {"role": "assistant", "content": assistant_text}]
 
-        prompt_text = self.tokenizer.apply_chat_template(full_messages, tokenize=False)
+        prompt_text = self.processor.apply_chat_template(full_messages, tokenize=False)
         inputs = self.tokenizer(prompt_text, return_tensors="pt").to(self.device)
         input_ids = inputs.input_ids[0]
 
@@ -339,27 +337,10 @@ class PassiveListeningPipeline:
             if resolved_lora and os.path.exists(resolved_lora):
                 try:
                     from peft import PeftModel
-                    safetensors_path = os.path.join(resolved_lora, "adapter_model.safetensors")
-                    if os.path.exists(safetensors_path):
-                        from safetensors import safe_open
-                        from safetensors.torch import save_file
-                        with safe_open(safetensors_path, framework="pt") as f:
-                            keys = list(f.keys())
-                        if any("model.model.layers." in k and "language_model" not in k for k in keys):
-                            remapped = {}
-                            with safe_open(safetensors_path, framework="pt") as f:
-                                for k in keys:
-                                    new_k = k.replace("model.model.layers.", "model.model.language_model.layers.")
-                                    remapped[new_k] = f.get_tensor(k)
-                            save_file(remapped, safetensors_path)
-                            print("✓ Normalized adapter key hierarchy (added .language_model.)")
                     self.backend.model = PeftModel.from_pretrained(self.backend.model, resolved_lora).eval()
                     self.lora_attached = True
-                    print(f"✓ LoRA adapter attached successfully from: {resolved_lora}")
-                except Exception as e:
-                    print(f"❌ Failed to attach LoRA adapter from {resolved_lora}: {e}")
-            else:
-                print(f"❌ LoRA path does not exist: {resolved_lora}")
+                except Exception:
+                    pass
 
         self._lock = threading.Lock()
 
@@ -475,8 +456,8 @@ class PassiveListeningPipeline:
             questions[q_key] = {
                 "type": "choice",
                 "criteria": {
-                    "YES": f"Pelanggan meminta libur makan atau batal libur (perubahan jadwal kirim) pada tanggal {rel_label}.",
-                    "NO": f"Tanggal {rel_label} tidak ada permintaan libur atau batal libur katering.",
+                    "YES": f"Pelanggan meminta tindakan operasional pengiriman untuk tanggal {rel_label}.",
+                    "NO": f"Tanggal {rel_label} tidak menjadi target aksi operasional pengiriman.",
                 },
             }
 
@@ -512,260 +493,76 @@ class PassiveListeningPipeline:
         renewal_package: Optional[str] = None
         rejection_reason: Optional[str] = None
 
-        # -------------------------------------------------------------------
-        # Multi-Policy Independent Slot Extraction & Subsumption Routing
-        # -------------------------------------------------------------------
-        risk_choice = get_decision("risk_escalation", "SAFE_AUTOMATED")
-        turn_choice = get_decision("decisive_turn", "")
-
-        # 1. Resolusi Waktu Penentu (TDM Decisive Timestamp)
-        decisive_ts = now_str
-        if turn_choice.startswith("turn_") and turn_choice[5:].isdigit():
-            idx = int(turn_choice[5:])
-            if idx < len(active_customer_turns):
-                decisive_ts = str(active_customer_turns[idx].get("timestamp") or now_str)
-        elif user_turns:
-            decisive_ts = str(user_turns[-1].get("timestamp") or now_str)
-        decisive_dt = parse_operational_timestamp(decisive_ts, now_dt)
-
-        # 2. Dimensi Skip / Cancel Skip
-        detected_skip_dates: List[str] = []
-        for d_str in calendar_window:
-            q_key = f"target_{d_str.replace('-', '_')}"
-            if get_decision(q_key) == "YES":
-                detected_skip_dates.append(d_str)
-
-        skip_session = session_choice if session_choice in ("lunch", "dinner", "both") else None
-        skip_action_candidate = action if action in ("APPLY_SKIP", "CANCEL_SKIP") else ("APPLY_SKIP" if detected_skip_dates else None)
-
-        valid_skip = False
-        skip_cutoff_reason = None
-        eff_skip_session = None
-
-        if skip_action_candidate and detected_skip_dates and skip_session:
-            v_ok, v_reason, v_eff = verify_operational_cutoff(decisive_dt, skip_action_candidate, detected_skip_dates, skip_session)
-            if v_ok:
-                valid_skip = True
-                eff_skip_session = v_eff
-            else:
-                skip_cutoff_reason = v_reason
-
-        # 3. Dimensi Paket Langganan (Renewal)
-        detected_sku = None
-        if tier_choice != "unspecified":
-            if session_choice in VALID_SESSIONS:
-                cand_sku = f"PAKET_{tier_choice.upper()}_{session_choice.upper()}"
-                if cand_sku in VALID_PACKAGE_SKUS:
-                    detected_sku = cand_sku
-            if not detected_sku:
-                fallback_skus = {
-                    "hemat": "PAKET_HEMAT_LUNCH",
-                    "ayam": "PAKET_AYAM_DINNER",
-                    "vegetarian": "PAKET_VEGETARIAN_LUNCH",
-                    "protein": "PAKET_PROTEIN_BOTH",
-                    "reguler": "PAKET_REGULER_BOTH",
-                    "bulanan": "PAKET_BULANAN_LUNCH",
-                }
-                detected_sku = fallback_skus.get(tier_choice)
-
-        if not detected_sku:
-            for t in reversed(user_turns):
-                c_upper = str(t.get("content") or "").upper()
-                for sku in VALID_PACKAGE_SKUS:
-                    if sku in c_upper:
-                        detected_sku = sku
-                        break
-                if detected_sku:
-                    break
-
-        # 4. Dimensi Catatan Diet / Alergi
-        dietary_text = None
-        dietary_markers = (
-            "alergi", "pantang", "pedas", "seafood", "udang", "telur",
-            "kacang", "non-pedas", "bumbu", "minyak", "lambung", "santan",
-            "msg", "diet", "sayur", "daging", "sapi", "vegetarian", "menu",
-            "garam", "gula", "kolesterol"
-        )
-        for t in reversed(user_turns):
-            c_text = str(t.get("content") or "").strip()
-            c_lower = c_text.lower()
-            if any(m in c_lower for m in dietary_markers) or action == "UPDATE_DIETARY":
-                dietary_text = c_text[:200].strip()
-                break
-
-        # 5. Routing Subsumpsi & Hirarki Preemption
-        status = "PROCESSED"
-        primary_action = action
-        operational_dates: List[str] = []
-        operational_session: Optional[str] = None
-        dietary_notes: Optional[str] = dietary_text
-        renewal_package: Optional[str] = detected_sku
-        rejection_reason: Optional[str] = None
-        secondary_actions: List[Dict[str, Any]] = []
-
-        is_hazard = (action == "ESCALATE_OWNER") or (risk_choice == "ESCALATE_TO_HUMAN" and action != "NEEDS_REVIEW_CLARIFY")
-
-        if is_hazard:
-            # Subsumption Tier 1: Bahaya Fisik / Komplain Kritis mengesampingkan mutasi dapur
-            primary_action = "ESCALATE_OWNER"
+        # Evaluasi percabangan aksi bisnis operasional
+        if action == "ESCALATE_OWNER":
             status = "ESCALATED_TO_MANAGEMENT"
-            operational_dates = []
-            operational_session = None
+        elif action in ("APPLY_SKIP", "CANCEL_SKIP"):
+            for d_str in calendar_window:
+                q_key = f"target_{d_str.replace('-', '_')}"
+                if get_decision(q_key) == "YES":
+                    operational_dates.append(d_str)
 
-            # Rekam permohonan libur makan sebagai secondary action (di-karantina)
-            if valid_skip:
-                secondary_actions.append({
-                    "action": skip_action_candidate,
-                    "dates": detected_skip_dates,
-                    "session": eff_skip_session,
-                    "notes": None,
-                    "renewal_package": None,
-                    "status": "QUARANTINED_PENDING_SAFETY_CLEARANCE",
-                })
-            if detected_sku:
-                secondary_actions.append({
-                    "action": "RENEW_PACKAGE",
-                    "dates": [],
-                    "session": None,
-                    "notes": None,
-                    "renewal_package": detected_sku,
-                    "status": "STAGED",
-                })
-            if dietary_notes:
-                secondary_actions.append({
-                    "action": "UPDATE_DIETARY",
-                    "dates": [],
-                    "session": None,
-                    "notes": dietary_notes,
-                    "renewal_package": None,
-                    "status": "RECORDED",
-                })
-
-        elif action in ("APPLY_SKIP", "CANCEL_SKIP") or valid_skip:
-            # Subsumption Tier 2: Perubahan jadwal kirim yang terikat batas waktu (Cutoff Time-Sensitive)
-            if valid_skip:
-                primary_action = skip_action_candidate
-                operational_dates = detected_skip_dates
-                operational_session = eff_skip_session
-                status = "APPROVED"
+            session = session_choice if session_choice in ("lunch", "dinner", "both") else None
+            if not operational_dates or not session:
+                status = "CLARIFICATION_REQUIRED"
+                action = "NEEDS_REVIEW_CLARIFY"
+                operational_dates = []
+                operational_session = None
             else:
-                if skip_cutoff_reason:
-                    if detected_sku:
-                        # Subsumption: skip rejected by kitchen cutoff, but renewal is valid
-                        primary_action = "RENEW_PACKAGE"
-                        renewal_package = detected_sku
-                        status = "APPROVED"
-                        operational_dates = []
-                        operational_session = None
-                        notes = skip_cutoff_reason
-                    else:
-                        status = "REJECTED_CUTOFF"
-                        primary_action = None
-                        rejection_reason = skip_cutoff_reason
-                        operational_dates = []
-                        operational_session = None
+                decisive_ts = now_str
+                turn_choice = get_decision("decisive_turn", "")
+                if turn_choice.startswith("turn_") and turn_choice[5:].isdigit():
+                    idx = int(turn_choice[5:])
+                    if idx < len(active_customer_turns):
+                        decisive_ts = str(active_customer_turns[idx].get("timestamp") or now_str)
+                elif user_turns:
+                    decisive_ts = str(user_turns[-1].get("timestamp") or now_str)
+
+                decisive_dt = parse_operational_timestamp(decisive_ts, now_dt)
+
+                valid, reason, eff_sess = verify_operational_cutoff(decisive_dt, action, operational_dates, session)
+                if valid:
+                    operational_session = eff_sess
+                    status = "APPROVED"
                 else:
-                    if detected_sku:
-                        # Subsumption: skip is unclear / no dates, but explicit renewal requested
-                        primary_action = "RENEW_PACKAGE"
-                        renewal_package = detected_sku
-                        status = "APPROVED"
-                        operational_dates = []
-                        operational_session = None
-                    else:
-                        status = "CLARIFICATION_REQUIRED"
-                        primary_action = "NEEDS_REVIEW_CLARIFY"
-                        operational_dates = []
-                        operational_session = None
+                    status = "REJECTED_CUTOFF"
+                    action = None
+                    rejection_reason = reason
+                    operational_dates = []
+                    operational_session = None
 
-            # Rekam paket perpanjangan sebagai secondary action jika ada
-            if detected_sku and primary_action != "RENEW_PACKAGE":
-                secondary_actions.append({
-                    "action": "RENEW_PACKAGE",
-                    "dates": [],
-                    "session": None,
-                    "notes": None,
-                    "renewal_package": detected_sku,
-                    "status": "STAGED",
-                })
-            if dietary_notes and primary_action != "UPDATE_DIETARY":
-                secondary_actions.append({
-                    "action": "UPDATE_DIETARY",
-                    "dates": [],
-                    "session": None,
-                    "notes": dietary_notes,
-                    "renewal_package": None,
-                    "status": "RECORDED",
-                })
-
-        elif action == "RENEW_PACKAGE" or detected_sku:
-            # Subsumption Tier 3: Perpanjangan paket langganan
-            if detected_sku:
-                primary_action = "RENEW_PACKAGE"
-                renewal_package = detected_sku
+        elif action == "RENEW_PACKAGE":
+            candidate_sku = None
+            if tier_choice != "unspecified" and session_choice in VALID_SESSIONS:
+                candidate_sku = f"PAKET_{tier_choice.upper()}_{session_choice.upper()}"
+            if candidate_sku in VALID_PACKAGE_SKUS:
+                renewal_package = candidate_sku
                 status = "APPROVED"
             else:
                 status = "CLARIFICATION_REQUIRED"
-                primary_action = "NEEDS_REVIEW_CLARIFY"
+                action = "NEEDS_REVIEW_CLARIFY"
                 renewal_package = None
 
-            if valid_skip:
-                secondary_actions.append({
-                    "action": skip_action_candidate,
-                    "dates": detected_skip_dates,
-                    "session": eff_skip_session,
-                    "notes": None,
-                    "renewal_package": None,
-                    "status": "APPROVED",
-                })
-            if dietary_notes:
-                secondary_actions.append({
-                    "action": "UPDATE_DIETARY",
-                    "dates": [],
-                    "session": None,
-                    "notes": dietary_notes,
-                    "renewal_package": None,
-                    "status": "RECORDED",
-                })
-
         elif action == "UPDATE_DIETARY":
-            primary_action = "UPDATE_DIETARY"
             status = "APPROVED"
-            if detected_sku:
-                secondary_actions.append({
-                    "action": "RENEW_PACKAGE",
-                    "dates": [],
-                    "session": None,
-                    "notes": None,
-                    "renewal_package": detected_sku,
-                    "status": "STAGED",
-                })
-            if valid_skip:
-                secondary_actions.append({
-                    "action": skip_action_candidate,
-                    "dates": detected_skip_dates,
-                    "session": eff_skip_session,
-                    "notes": None,
-                    "renewal_package": None,
-                    "status": "APPROVED",
-                })
+            dietary_notes = latest_user_text[:200].strip()
 
         elif action in ("QUERY_ONLY", "NEEDS_REVIEW_CLARIFY"):
-            primary_action = action
+            operational_dates = []
+            operational_session = None
             if action == "NEEDS_REVIEW_CLARIFY":
                 status = "CLARIFICATION_REQUIRED"
 
         latency_ms = (time.perf_counter() - t0) * 1000.0
         return {
             "status": status,
-            "action": primary_action,
+            "action": action,
             "dates": operational_dates,
             "session": operational_session,
             "dietary_notes": dietary_notes,
             "renewal_package": renewal_package,
-            "secondary_actions": secondary_actions,
             "rejection_reason": rejection_reason,
-            "risk_level": "CRITICAL" if primary_action == "ESCALATE_OWNER" else "NORMAL",
+            "risk_level": "CRITICAL" if action == "ESCALATE_OWNER" else "NORMAL",
             "latency_ms": round(latency_ms, 2),
             "model_version": "Intern-Decision-4B-QLoRA" if self.lora_attached else "Intern-Decision-4B-ZeroShot",
         }
