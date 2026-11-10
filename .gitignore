@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# Model checkpoints & large binaries
+*.safetensors
+*.tar.gz
+*.zip
+models/checkpoints/
+models/Intern-Decision-4B
+
+# Tokenized datasets (reproducible)
+datasets/tokenized_*.json.gz
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# benchmark_colab.py (166MB embedded notebook)
+benchmark_colab.py
